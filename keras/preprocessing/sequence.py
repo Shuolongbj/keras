@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
+"""Utilities for preprocessing sequence data.
+"""
 from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import numpy as np
 import random
@@ -139,7 +143,7 @@ def skipgrams(sequence, vocabulary_size,
             integers (eg. [0, 1, 1 .. ]),
             if True labels will be categorical eg. [[1,0],[0,1],[0,1] .. ]
         sampling_table: 1D array of size `vocabulary_size` where the entry i
-            encodes the probabibily to sample a word of rank i.
+            encodes the probability to sample a word of rank i.
         seed: random seed.
 
     # Returns

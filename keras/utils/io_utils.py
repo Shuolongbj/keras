@@ -1,5 +1,6 @@
 """Utilities related to disk I/O."""
 from __future__ import absolute_import
+from __future__ import division
 from __future__ import print_function
 
 import numpy as np
@@ -67,12 +68,12 @@ class HDF5Matrix(object):
             if start is None:
                 start = 0
             if stop is None:
-                stop = self.data.shape[0]
+                stop = self.shape[0]
             if stop + self.start <= self.end:
                 idx = slice(start + self.start, stop + self.start)
             else:
                 raise IndexError
-        elif isinstance(key, int):
+        elif isinstance(key, (int, np.integer)):
             if key + self.start < self.end:
                 idx = key + self.start
             else:
