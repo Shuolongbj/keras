@@ -64,6 +64,7 @@ from ..layers import Reshape
 from ..layers import BatchNormalization
 from ..layers import GlobalAveragePooling2D
 from ..layers import GlobalMaxPooling2D
+from ..layers import ZeroPadding2D
 from ..layers import Conv2D
 from ..layers import DepthwiseConv2D
 from .. import initializers
@@ -218,10 +219,15 @@ def MobileNet(input_shape=None,
                              '`0.25`, `0.50`, `0.75` or `1.0` only.')
 
         if rows != cols or rows not in [128, 160, 192, 224]:
-            raise ValueError('If imagenet weights are being loaded, '
-                             'input must have a static square shape (one of '
-                             '(128,128), (160,160), (192,192), or (224, 224)).'
-                             ' Input shape provided = %s' % (input_shape,))
+            if rows is None:
+                rows = 224
+                warnings.warn('MobileNet shape is undefined.'
+                              ' Weights for input shape (224, 224) will be loaded.')
+            else:
+                raise ValueError('If imagenet weights are being loaded, '
+                                 'input must have a static square shape (one of '
+                                 '(128, 128), (160, 160), (192, 192), or (224, 224)).'
+                                 ' Input shape provided = %s' % (input_shape,))
 
     if K.image_data_format() != 'channels_last':
         warnings.warn('The MobileNet family of models is only available '
@@ -301,7 +307,7 @@ def MobileNet(input_shape=None,
     # load weights
     if weights == 'imagenet':
         if K.image_data_format() == 'channels_first':
-            raise ValueError('Weights for "channels_last" format '
+            raise ValueError('Weights for "channels_first" format '
                              'are not available.')
         if alpha == 1.0:
             alpha_text = '1_0'
@@ -381,11 +387,12 @@ def _conv_block(inputs, filters, alpha, kernel=(3, 3), strides=(1, 1)):
     """
     channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
     filters = int(filters * alpha)
+    x = ZeroPadding2D(padding=(1, 1), name='conv1_pad')(inputs)
     x = Conv2D(filters, kernel,
-               padding='same',
+               padding='valid',
                use_bias=False,
                strides=strides,
-               name='conv1')(inputs)
+               name='conv1')(x)
     x = BatchNormalization(axis=channel_axis, name='conv1_bn')(x)
     return Activation(relu6, name='conv1_relu')(x)
 
@@ -442,13 +449,15 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
     channel_axis = 1 if K.image_data_format() == 'channels_first' else -1
     pointwise_conv_filters = int(pointwise_conv_filters * alpha)
 
+    x = ZeroPadding2D(padding=(1, 1), name='conv_pad_%d' % block_id)(inputs)
     x = DepthwiseConv2D((3, 3),
-                        padding='same',
+                        padding='valid',
                         depth_multiplier=depth_multiplier,
                         strides=strides,
                         use_bias=False,
-                        name='conv_dw_%d' % block_id)(inputs)
-    x = BatchNormalization(axis=channel_axis, name='conv_dw_%d_bn' % block_id)(x)
+                        name='conv_dw_%d' % block_id)(x)
+    x = BatchNormalization(
+        axis=channel_axis, name='conv_dw_%d_bn' % block_id)(x)
     x = Activation(relu6, name='conv_dw_%d_relu' % block_id)(x)
 
     x = Conv2D(pointwise_conv_filters, (1, 1),
@@ -456,5 +465,6 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                use_bias=False,
                strides=(1, 1),
                name='conv_pw_%d' % block_id)(x)
-    x = BatchNormalization(axis=channel_axis, name='conv_pw_%d_bn' % block_id)(x)
+    x = BatchNormalization(
+        axis=channel_axis, name='conv_pw_%d_bn' % block_id)(x)
     return Activation(relu6, name='conv_pw_%d_relu' % block_id)(x)

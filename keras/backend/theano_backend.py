@@ -451,6 +451,18 @@ def batch_dot(x, y, axes=None):
     if axes is None:
         # behaves like tf.batch_matmul as default
         axes = [x.ndim - 1, y.ndim - 2]
+    if isinstance(axes, tuple):
+        axes = list(axes)
+
+    # workaround because theano doesn't accept axes
+    # which contains the batch axis (0)
+    if axes[0] == 0:
+        x = transpose(x)
+        axes[0] = x.ndim - 1
+    if axes[1] == 0:
+        y = transpose(y)
+        axes[1] = y.ndim - 1
+
     out = T.batched_tensordot(x, y, axes=axes)
     if ndim(out) == 1:
         out = expand_dims(out, 1)
@@ -1551,8 +1563,11 @@ def relu(x, alpha=0., max_value=None):
     return x
 
 
-def softmax(x):
-    return T.nnet.softmax(x)
+def softmax(x, axis=-1):
+    if axis == -1 or axis == x.ndim - 1:
+        return T.nnet.softmax(x)
+    return T.exp(x - x.max()) / T.exp(
+        x - x.max()).sum(axis=axis, keepdims=True)
 
 
 def softplus(x):
@@ -2171,14 +2186,10 @@ def pool2d(x, pool_size, strides=(1, 1), padding='valid',
                                 pad=pad,
                                 mode='max')
     elif pool_mode == 'avg':
-        if padding == 'same':
-            th_avg_pool_mode = 'average_inc_pad'
-        elif padding == 'valid':
-            th_avg_pool_mode = 'average_exc_pad'
         pool_out = pool.pool_2d(x, ws=pool_size, stride=strides,
                                 ignore_border=True,
                                 pad=pad,
-                                mode=th_avg_pool_mode)
+                                mode='average_exc_pad')
     else:
         raise ValueError('Invalid pooling mode:', pool_mode)
     if padding == 'same':
@@ -2204,9 +2215,9 @@ def pool3d(x, pool_size, strides=(1, 1, 1), padding='valid',
         w_pad = pool_size[0] - 2 if pool_size[0] % 2 == 1 else pool_size[0] - 1
         h_pad = pool_size[1] - 2 if pool_size[1] % 2 == 1 else pool_size[1] - 1
         d_pad = pool_size[2] - 2 if pool_size[2] % 2 == 1 else pool_size[2] - 1
-        padding = (w_pad, h_pad, d_pad)
+        pad = (w_pad, h_pad, d_pad)
     elif padding == 'valid':
-        padding = (0, 0, 0)
+        pad = (0, 0, 0)
     else:
         raise ValueError('Invalid padding:', padding)
 
@@ -2216,12 +2227,12 @@ def pool3d(x, pool_size, strides=(1, 1, 1), padding='valid',
     if pool_mode == 'max':
         pool_out = pool.pool_3d(x, ws=pool_size, stride=strides,
                                 ignore_border=True,
-                                pad=padding,
+                                pad=pad,
                                 mode='max')
     elif pool_mode == 'avg':
         pool_out = pool.pool_3d(x, ws=pool_size, stride=strides,
                                 ignore_border=True,
-                                pad=padding,
+                                pad=pad,
                                 mode='average_exc_pad')
     else:
         raise ValueError('Invalid pooling mode:', pool_mode)
